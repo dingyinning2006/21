@@ -21,8 +21,8 @@
 
 ## 已核实的 SDK 行为（写代码的依据）
 
-- `executeLogin()`：发起登录并返回二维码**图片内容**；每次调用都会创建**新的**登录 Future
-- `getQrcode()`：返回二维码的**原始文本**（ZXing 用它渲染 PNG）
+- `executeLogin()`：发起登录并返回二维码的**可扫描文本**（WeChat liteapp URL，如 `https://liteapp.weixin.qq.com/q/...`），直接用它渲染 PNG；每次调用都会创建**新的**登录 Future
+- `getQrcode()`：返回 32 字符的原始 token，**不可扫码**，不要拿它渲染二维码（已实测验证）
 - `getLoginFuture().get(2, TimeUnit.MINUTES)`：阻塞等扫码确认；超时≈二维码过期
 - `cancelLogin()`：取消当前登录轮询，之后可再次 `executeLogin()`
 - `getUpdates()`：**长轮询**拉消息，内部是 `pollAndDispatchMessages()`——收到消息会自动触发 `onMessage` 监听器；SDK 没有后台轮询线程，必须自己写循环调它
@@ -170,8 +170,7 @@ public class BotRunner implements CommandLineRunner {
     /** 登录：生成二维码 PNG；扫码确认前阻塞；过期就重新生成，最多 5 次 */
     private LoginContext loginWithQrRetry() throws Exception {
         for (int attempt = 1; attempt <= MAX_LOGIN_ATTEMPTS; attempt++) {
-            client.executeLogin();                 // 向微信服务器发起登录，拿到二维码
-            String qrContent = client.getQrcode(); // executeLogin 返回的是图片内容，原始二维码文本从这拿
+            String qrContent = client.executeLogin(); // 向微信服务器发起登录，返回二维码可扫描文本
             generateQrCode(qrContent, Paths.get("qr.png"));
             log.info("第 {} 次生成二维码：请打开项目根目录下的 qr.png，用手机微信扫码登录", attempt);
             try {
@@ -202,7 +201,7 @@ public class BotRunner implements CommandLineRunner {
 
 为什么这样写：
 - `@Component` + `CommandLineRunner`：Spring 启动完自动跑 `run()`，bot 逻辑天然挂在应用生命周期上；`bot` 包在 `com.example.demo` 下，能被自动扫描到
-- `getQrcode()` 而不是用 `executeLogin()` 的返回值：已从 SDK 字节码核实，后者返回图片内容，前者才是 ZXing 需要的原始文本
+- 直接用 `executeLogin()` 的返回值渲染：已从 SDK 字节码核实并实测，它返回的是可扫描的 liteapp URL；`getQrcode()` 返回的只是 32 字符 token，不可扫码（早期版本误用 `getQrcode()` 导致扫码乱码）
 - 重试循环：微信二维码约 2 分钟过期，`get(2, TimeUnit.MINUTES)` 超时后 `cancelLogin()` 停掉旧轮询再重新登录（已核实 `executeLogin()` 每次都会生成新 Future，重试是安全的）
 
 - [ ] **Step 2.2: 编译验证**

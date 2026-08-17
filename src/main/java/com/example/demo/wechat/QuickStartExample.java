@@ -1,4 +1,4 @@
-package com.example.demo;
+package com.example.demo.wechat;
 
 import com.github.wechat.ilink.sdk.ILinkClient;
 import com.github.wechat.ilink.sdk.core.config.ILinkConfig;

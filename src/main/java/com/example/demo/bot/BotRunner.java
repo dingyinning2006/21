@@ -1,7 +1,11 @@
 package com.example.demo.bot;
 
 import com.github.wechat.ilink.sdk.core.listener.OnLoginListener;
+import com.github.wechat.ilink.sdk.core.listener.OnMessageListener;
 import com.github.wechat.ilink.sdk.core.login.LoginContext;
+import com.github.wechat.ilink.sdk.core.model.MessageItem;
+import com.github.wechat.ilink.sdk.core.model.TextItem;
+import com.github.wechat.ilink.sdk.core.model.WeixinMessage;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
 import com.google.zxing.MultiFormatWriter;
@@ -14,9 +18,11 @@ import org.springframework.stereotype.Component;
 
 import com.github.wechat.ilink.sdk.ILinkClient;
 
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -31,6 +37,8 @@ public class BotRunner implements CommandLineRunner {
 
     private ILinkClient client;
 
+    private static final String FIXED_REPLY = "我是你的机器人，请等待问答";
+
     @Override
     public void run(String... args) throws Exception {
         client = ILinkClient.builder()
@@ -44,7 +52,13 @@ public class BotRunner implements CommandLineRunner {
                     public void onLoginFailure(Throwable throwable) {
                         logger.error("登录失败：{}",throwable.getMessage());
                     }
-                }).build();
+                }).onMessage(new OnMessageListener() {
+                    @Override
+                    public void onMessages(List<WeixinMessage> messages) {
+                        handleMessages(messages);
+                    }
+                })
+                .build();
 
         LoginContext context = loginWithQrRetry();
         if (context==null){
@@ -52,6 +66,21 @@ public class BotRunner implements CommandLineRunner {
             return;
         }
         logger.info("登录完成，botId = {}",context.getBotId());
+
+        // 长轮询收消息：getUpdates() 阻塞等新消息，收到后自动触发 onMessage。
+        // SDK 没有后台线程，这个循环必须自己写。
+        while (true) {
+            try {
+                List<WeixinMessage> messages = client.getUpdates();
+                if (messages.isEmpty()) {
+                    Thread.sleep(500); // 空轮询稍等片刻，避免空转
+                }
+            } catch (Exception e) {
+                logger.warn("拉取消息失败: {}", e.getMessage());
+                Thread.sleep(2000); // 出错后等 2 秒再继续，避免疯狂重试
+            }
+        }
+
     }
 
     private LoginContext loginWithQrRetry() throws Exception{
@@ -82,4 +111,26 @@ public class BotRunner implements CommandLineRunner {
         MatrixToImageWriter.writeToPath(matrix,"PNG",filePath);
     }
 
+    private void handleMessages(List<WeixinMessage> messages){
+        for (WeixinMessage msg:messages){
+            String fromUserId = msg.getFrom_user_id();
+            List<MessageItem> items = msg.getItem_list();
+            if (items==null){
+                continue;
+            }
+
+            for (MessageItem item:items){
+                TextItem textItem = item.getText_item();
+                if (textItem==null){
+                    continue;
+                }
+                logger.info("收到消息 fromUserId={},text={}",fromUserId,textItem.getText());
+                try {
+                    client.sendText(fromUserId,FIXED_REPLY);
+                }catch (Exception e){
+                    logger.error("回复失败：{}",e.getMessage());
+                }
+            }
+        }
+    }
 }

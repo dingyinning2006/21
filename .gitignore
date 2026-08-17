@@ -34,3 +34,7 @@ build/
 
 ### Bot ###
 qr.png
+
+### 配置 ###
+application.properties
+

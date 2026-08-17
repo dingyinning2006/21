@@ -37,7 +37,12 @@ public class BotRunner implements CommandLineRunner {
 
     private ILinkClient client;
 
-    private static final String FIXED_REPLY = "我是你的机器人，请等待问答";
+    private final LLMService llmService;
+
+    public BotRunner(LLMService llmService) {
+        this.llmService = llmService;
+    }
+
 
     @Override
     public void run(String... args) throws Exception {
@@ -124,12 +129,21 @@ public class BotRunner implements CommandLineRunner {
                 if (textItem==null){
                     continue;
                 }
-                logger.info("收到消息 fromUserId={},text={}",fromUserId,textItem.getText());
+                String userText = textItem.getText();
+                logger.info("收到消息 fromUserId={},text={}", fromUserId, userText);
                 try {
-                    client.sendText(fromUserId,FIXED_REPLY);
-                }catch (Exception e){
-                    logger.error("回复失败：{}",e.getMessage());
+                    // 让大模型结合上下文生成回复
+                    String reply = llmService.chat(fromUserId, userText);
+                    client.sendText(fromUserId, reply);
+                } catch (Exception e) {
+                    logger.error("回复失败：{}", e.getMessage());
+                    try {
+                        client.sendText(fromUserId, "抱歉，我暂时无法回答，请稍后再试");
+                    } catch (Exception e2) {
+                        logger.error("发送兜底回复也失败：{}", e2.getMessage());
+                    }
                 }
+
             }
         }
     }

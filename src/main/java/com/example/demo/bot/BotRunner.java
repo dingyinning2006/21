@@ -125,10 +125,15 @@ public class BotRunner implements CommandLineRunner {
             }
 
             for (MessageItem item:items){
+                if (item.getImage_item()!=null){
+                    handleImageMessage(fromUserId,item);
+                    continue;
+                }
                 TextItem textItem = item.getText_item();
                 if (textItem==null){
                     continue;
                 }
+
                 String userText = textItem.getText();
                 logger.info("收到消息 fromUserId={},text={}", fromUserId, userText);
                 try {
@@ -147,4 +152,23 @@ public class BotRunner implements CommandLineRunner {
             }
         }
     }
+
+    private void handleImageMessage(String fromUserId, MessageItem item){
+        try {
+            byte[] imageBytes = client.downloadImageFromMessageItem(item);
+            logger.info("收到图片消息 fromUserId={}, size={} bytes", fromUserId, imageBytes.length);
+            String reply = llmService.describeImage(imageBytes,null);
+            client.sendText(fromUserId, reply);
+        }catch (Exception e){
+            logger.error("图片识别失败：{}",e.getMessage());
+            try {
+                client.sendText(fromUserId,"抱歉，我暂时无法识别这张图片");
+            }catch (Exception e2){
+                logger.error("发送兜底回复也失败：{}",e2.getMessage());
+            }
+        }
+    }
+
+
+
 }

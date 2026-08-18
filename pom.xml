@@ -70,6 +70,18 @@
 				<version>2.17.0</version>
 			</dependency>
 
+		<!-- 百度语音ASR/TTS统一SDK -->
+		<dependency>
+			<groupId>com.baidu.aip</groupId>
+			<artifactId>java-sdk</artifactId>
+			<version>4.16.1</version>
+		</dependency>
+		<!-- JSON解析，用于音频参数解析 -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>2.15.2</version>
+		</dependency>
 		<dependency>
 			<groupId>jakarta.annotation</groupId>
 			<artifactId>jakarta.annotation-api</artifactId>

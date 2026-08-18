@@ -4,8 +4,9 @@ import com.github.wechat.ilink.sdk.ILinkClient;
 import com.github.wechat.ilink.sdk.core.listener.OnLoginListener;
 import com.github.wechat.ilink.sdk.core.listener.OnMessageListener;
 import com.github.wechat.ilink.sdk.core.login.LoginContext;
+import com.github.wechat.ilink.sdk.core.model.MessageItem;
 import com.github.wechat.ilink.sdk.core.model.WeixinMessage;
-
+import com.github.wechat.ilink.sdk.core.model.MessageItem;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -63,6 +64,9 @@ public class WeChatClient {
 
     public void sendFile(String userId, byte[] bytes, String fileName, String caption) throws IOException{
         client.sendFile(userId, bytes, fileName, caption);
+    }
+    public byte[] downloadVoice(MessageItem item) throws IOException {
+        return client.downloadVoiceFromMessageItem(item);
     }
 
     public List<WeixinMessage> getUpdates() throws Exception {

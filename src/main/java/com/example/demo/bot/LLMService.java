@@ -1,5 +1,7 @@
 package com.example.demo.bot;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,8 @@ import java.util.Base64;
 
 @Service
 public class LLMService {
+
+    private static final Logger logger = LoggerFactory.getLogger(LLMService.class);
 
     private static final String SYSTEM_PROMPT = "你是一个微信智能助理，请用简洁、友好、准确的中文回答用户的问题。";
 
@@ -71,6 +75,118 @@ public class LLMService {
         history.addLast(new ChatMessage("assistant", reply));
         return reply;
 
+    }
+
+    /** 单轮对话（不带历史记忆），用于意图识别等简单场景 */
+    public String askOnce(String systemPrompt, String userText) {
+        List<ChatMessage> messages = new ArrayList<>();
+        messages.add(new ChatMessage("system", systemPrompt));
+        messages.add(new ChatMessage("user", userText));
+        String requestBody = objectMapper.writeValueAsString(Map.of(
+                "model", model,
+                "messages", messages
+        ));
+        return callApi(requestBody);
+    }
+
+    /** 工具执行器：由业务方实现，根据工具名和参数 JSON 执行并返回文本结果 */
+    public interface ToolExecutor {
+        String execute(String toolName, JsonNode args) throws Exception;
+    }
+
+    /** 工具调用循环的最大轮数，防止模型无限调工具 */
+    private static final int MAX_TOOL_TURNS = 5;
+
+    /** 带 Function Calling 的对话：模型需要工具时自动调用执行器，把结果回填后再回答。结果同样记入多轮记忆。 */
+    public String chatWithTools(String userId, String userText, ToolExecutor executor) {
+        Deque<ChatMessage> history = conversations.computeIfAbsent(userId, k -> new ArrayDeque<>());
+        history.addLast(new ChatMessage("user", userText));
+        while (history.size() > MAX_HISTORY) {
+            history.pollFirst();
+        }
+
+        // 组装本轮 messages：system + 历史 + 工具定义。工具消息只在循环内拼，不污染历史。
+        List<Map<String, Object>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "system", "content", SYSTEM_PROMPT));
+        for (ChatMessage m : history) {
+            messages.add(Map.of("role", m.role(), "content", m.content()));
+        }
+
+        String content = null;
+        for (int turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+            String responseBody = postChat(messages, TOOLS);
+            JsonNode message = objectMapper.readTree(responseBody).path("choices").path(0).path("message");
+            JsonNode toolCalls = message.path("tool_calls");
+
+            // 模型没有要调用工具 -> 这就是最终回答
+            if (!toolCalls.isArray() || toolCalls.isEmpty()) {
+                content = message.path("content").asText();
+                break;
+            }
+
+            // 模型要调用工具：先把 assistant 消息（含 tool_calls）原样放回，再逐个执行并回填结果
+            messages.add(objectMapper.convertValue(message, Map.class));
+            for (JsonNode toolCall : toolCalls) {
+                String toolName = toolCall.path("function").path("name").asText();
+                String result;
+                try {
+                    JsonNode args = objectMapper.readTree(toolCall.path("function").path("arguments").asText());
+                    result = executor.execute(toolName, args);
+                    logger.info("工具调用成功：{}，参数={}", toolName, toolCall.path("function").path("arguments").asText());
+                } catch (Exception e) {
+                    logger.warn("工具执行失败：{}，原因：{}", toolName, e.getMessage());
+                    result = "工具执行失败：" + e.getMessage();
+                }
+                messages.add(Map.of("role", "tool", "tool_call_id", toolCall.path("id").asText(), "content", result));
+            }
+        }
+        if (content == null) {
+            content = "抱歉，工具调用次数过多，请稍后再试。";
+        }
+
+        history.addLast(new ChatMessage("assistant", content));
+        return content;
+    }
+
+    /** 两个工具的 JSON Schema 定义：天气 + 当前时间 */
+    private static final List<Map<String, Object>> TOOLS = List.of(
+            Map.of("type", "function", "function", Map.of(
+                    "name", "get_weather",
+                    "description", "查询指定城市的当前天气情况，包括温度、天气现象、风力等",
+                    "parameters", Map.of(
+                            "type", "object",
+                            "properties", Map.of("city", Map.of(
+                                    "type", "string",
+                                    "description", "城市名，如：北京、扬州、上海")),
+                            "required", List.of("city")))),
+            Map.of("type", "function", "function", Map.of(
+                    "name", "get_current_time",
+                    "description", "获取当前的日期和时间",
+                    "parameters", Map.of("type", "object", "properties", Map.of()))),
+            Map.of("type", "function", "function", Map.of(
+                    "name", "calculate",
+                    "description", "计算数学表达式的结果，支持加减乘除、括号、幂运算。例：3.5*(2+4)/7、2^10",
+                    "parameters", Map.of(
+                            "type", "object",
+                            "properties", Map.of("expression", Map.of(
+                                    "type", "string",
+                                    "description", "数学表达式（字符串形式），如：3.5*(2+4)/7")),
+                            "required", List.of("expression")))));
+
+    /** 带工具定义的对话请求 */
+    private String postChat(List<Map<String, Object>> messages, List<Map<String, Object>> tools) {
+        String requestBody = objectMapper.writeValueAsString(Map.of(
+                "model", model,
+                "messages", messages,
+                "tools", tools
+        ));
+        return restClient.post()
+                .uri(baseUrl + "/chat/completions")
+                .header("Authorization", "Bearer " + apiKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(requestBody)
+                .retrieve()
+                .body(String.class);
     }
 
     /** 识别图片内容，返回文字描述 */

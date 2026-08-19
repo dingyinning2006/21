@@ -58,6 +58,13 @@
             <version>3.5.3</version>
         </dependency>
 
+        <!-- SILK 语音编码（微信语音气泡格式），native 库随 jar 打包，无需安装 -->
+        <dependency>
+            <groupId>io.github.kasukusakura</groupId>
+            <artifactId>silk-codec</artifactId>
+            <version>0.0.5</version>
+        </dependency>
+
 
 	</dependencies>
 

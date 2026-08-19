@@ -186,6 +186,11 @@ public class BotRunner implements CommandLineRunner {
         }
     }
 
+    /** double 转字符串：保留 8 位小数去尾零，消除浮点噪声（如 0.1+0.2 -> 0.3 而不是 0.30000000000000004） */
+    private static String formatNumber(double v) {
+        return new java.math.BigDecimal(String.format("%.8f", v)).stripTrailingZeros().toPlainString();
+    }
+
     /** 工具执行器：模型请求工具时由这里分发执行，返回文本结果给模型 */
     private String executeTool(String toolName, JsonNode args) throws Exception {
         switch (toolName) {
@@ -199,10 +204,16 @@ public class BotRunner implements CommandLineRunner {
                 if (expr == null || expr.isBlank()) {
                     throw new IllegalArgumentException("缺少表达式参数");
                 }
-                double result = Calculator.evaluate(expr);
-                // 保留 8 位小数去尾零，消除浮点噪声（如 0.1+0.2 -> 0.3 而不是 0.30000000000000004）
-                return new java.math.BigDecimal(String.format("%.8f", result))
-                        .stripTrailingZeros().toPlainString();
+                return formatNumber(Calculator.evaluate(expr));
+            case "convert_unit":
+                String fromUnit = args.path("from_unit").isValueNode() ? args.path("from_unit").asText() : null;
+                String toUnit = args.path("to_unit").isValueNode() ? args.path("to_unit").asText() : null;
+                if (fromUnit == null || toUnit == null) {
+                    throw new IllegalArgumentException("缺少单位参数");
+                }
+                double value = args.path("value").isValueNode() ? args.path("value").asDouble() : 0;
+                double converted = UnitConverter.convert(value, fromUnit, toUnit);
+                return value + fromUnit + " = " + formatNumber(converted) + toUnit;
             default:
                 throw new IllegalStateException("未知工具：" + toolName);
         }

@@ -171,7 +171,17 @@ public class LLMService {
                             "properties", Map.of("expression", Map.of(
                                     "type", "string",
                                     "description", "数学表达式（字符串形式），如：3.5*(2+4)/7")),
-                            "required", List.of("expression")))));
+                            "required", List.of("expression")))),
+            Map.of("type", "function", "function", Map.of(
+                    "name", "convert_unit",
+                    "description", "单位换算：把一种单位换算成另一种单位。支持长度（米/千米/公里/厘米/毫米/英尺/英寸/英里）、重量（千克/公斤/克/吨/斤/磅/盎司）、温度（摄氏度/华氏度/开尔文）、时间（秒/分钟/小时/天）、容量（升/毫升/立方米）。例：100千米等于多少米、36华氏度等于多少摄氏度",
+                    "parameters", Map.of(
+                            "type", "object",
+                            "properties", Map.of(
+                                    "value", Map.of("type", "number", "description", "要换算的数值，如 100"),
+                                    "from_unit", Map.of("type", "string", "description", "原单位，如：千米"),
+                                    "to_unit", Map.of("type", "string", "description", "目标单位，如：米")),
+                            "required", List.of("value", "from_unit", "to_unit")))));
 
     /** 带工具定义的对话请求 */
     private String postChat(List<Map<String, Object>> messages, List<Map<String, Object>> tools) {

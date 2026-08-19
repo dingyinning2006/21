@@ -1,51 +1,52 @@
 package com.example.demo;
 
 import com.example.demo.llm.LlmService;
+import com.example.demo.service.FunctionCallingService;
+import com.example.demo.speech.SpeechRecognitionService;
 import com.example.demo.speech.SpeechSynthesisService;
-import com.example.demo.util.ConfigUtil;
-import com.example.demo.wechat.WeChatClient;
-import com.github.wechat.ilink.sdk.core.model.MessageItem;
-import com.github.wechat.ilink.sdk.core.model.WeixinMessage;
-import com.example.demo.intent.IntentRecognizer;
 import com.example.demo.weather.WeatherClient;
 import com.example.demo.weather.WeatherResponse;
+import com.example.demo.wechat.WeChatClient;
+import com.example.demo.intent.IntentRecognizer;
+import com.github.wechat.ilink.sdk.core.model.MessageItem;
+import com.github.wechat.ilink.sdk.core.model.WeixinMessage;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ConfigurableApplicationContext;
+
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import com.example.demo.speech.SpeechRecognitionService;
-import com.example.demo.speech.SpeechSynthesisService;
 
+@SpringBootApplication
 public class DemoApplication {
 
 	private static final ExecutorService executor = Executors.newFixedThreadPool(4);
 
 	public static void main(String[] args) throws Exception {
-		// 从配置文件读取，不再硬编码写死密钥
-		String apiKey = ConfigUtil.get("llm.api-key");
-		String baseUrl = ConfigUtil.get("llm.base-url");
-		String modelEpId = ConfigUtil.get("llm.model");
+		// ===== 改动1：启动 Spring 容器，自动注册 ToolRegistry/FunctionCallingService/WeatherTool/CalculatorTool =====
+		ConfigurableApplicationContext context = SpringApplication.run(DemoApplication.class, args);
 
+		// 从容器拿 FunctionCallingService 和 LlmService（由 AppConfig @Bean 创建）
+		FunctionCallingService fcService = context.getBean(FunctionCallingService.class);
+		LlmService llmService = context.getBean(LlmService.class);
+
+		// ===== 以下保持你原来的手动构造 =====
 		WeChatClient client = new WeChatClient();
-		IntentRecognizer intentRecognizer = new IntentRecognizer();   // 新增
-		WeatherClient weatherClient = new WeatherClient();   // 新增
-		LlmService llmService = new LlmService(apiKey, baseUrl, modelEpId);
-// 百度语音识别
-
-
+		IntentRecognizer intentRecognizer = new IntentRecognizer();
+		WeatherClient weatherClient = new WeatherClient();
 		SpeechRecognitionService asrService = new SpeechRecognitionService();
-		SpeechSynthesisService ttsService = new SpeechSynthesisService();  // 新增
+		SpeechSynthesisService ttsService = new SpeechSynthesisService();
+
 		client.login();
-		// 新增：消费掉登录前的历史消息，避免第一条新消息被忽略
 		client.getUpdates();
 
 		System.out.println("========================================");
 		System.out.println("  LLM 机器人已启动，等待 clawbot 消息...");
 		System.out.println("========================================");
 
-		System.out.println("========================================");
-		System.out.println("  LLM 机器人已启动，等待 clawbot 消息...");
-		System.out.println("========================================");
 		final boolean[] replyByVoice = {false};
+
 		while (true) {
 			try {
 				List<WeixinMessage> messages = client.getUpdates();
@@ -55,7 +56,8 @@ public class DemoApplication {
 					if (msg.getItem_list() == null) continue;
 
 					for (MessageItem item : msg.getItem_list()) {
-						// 文字消息处理
+
+						// ===== 文字消息 =====
 						if (item.getText_item() != null) {
 							String userText = item.getText_item().getText();
 							System.out.println("[收到] " + fromUserId + ": " + userText);
@@ -64,17 +66,18 @@ public class DemoApplication {
 								System.out.println("[收到用户消息] " + fromUserId + " : " + userText);
 								try {
 									String reply;
-// 用意图识别器判断
 									IntentRecognizer.IntentType intent = intentRecognizer.recognize(userText);
 									switch (intent) {
 										case WEATHER -> {
-											reply = getWeatherReply(userText, weatherClient, intentRecognizer);
+											// ===== 改动2：天气走 Function Calling，由 WeatherTool 处理 =====
+											reply = fcService.chat(userText);
 											System.out.println("[✅ 天气查询回复]：" + reply);
 										}
 										case HELP -> {
 											reply = getHelpReply();
 											System.out.println("[✅ 帮助回复]");
-										}case VOICE_REPLY -> {
+										}
+										case VOICE_REPLY -> {
 											replyByVoice[0] = true;
 											reply = "✅ 已切换为语音回复模式（当前微信暂不支持发送语音，功能开发中）";
 											System.out.println("[✅ 切换语音回复模式]");
@@ -85,13 +88,14 @@ public class DemoApplication {
 											System.out.println("[✅ 切换文字回复模式]");
 										}
 										default -> {
-											reply = llmService.chat(userText);
+											// ===== 改动3：闲聊+计算器都走 Function Calling，LLM 自动判断调不调工具 =====
+											reply = fcService.chat(userText);
 											System.out.println("[✅ LLM拿到回复]：" + reply);
 										}
 									}
-									// ====================================
+
+									// 发送回复（语音/文字模式）
 									if (replyByVoice[0]) {
-										// 语音回复模式：生成 mp3 并发文件
 										byte[] mp3Bytes = ttsService.synthesize(reply);
 										if (mp3Bytes != null) {
 											client.sendFile(fromUserId, mp3Bytes, "语音回复.mp3", "");
@@ -114,7 +118,8 @@ public class DemoApplication {
 								}
 							});
 						}
-						// 新增图片消息分支（你之前要做的识图功能）
+
+						// ===== 图片消息（保持不变，图文混合不走工具调用） =====
 						if (item.getImage_item() != null) {
 							String imgUrl = item.getImage_item().getUrl();
 							System.out.println("[收到图片消息] 图片链接：" + imgUrl);
@@ -128,7 +133,8 @@ public class DemoApplication {
 								}
 							});
 						}
-						// 语音消息处理
+
+						// ===== 语音消息 =====
 						if (item.getVoice_item() != null) {
 							System.out.println("[收到语音消息] from=" + fromUserId
 									+ ", duration=" + item.getVoice_item().getPlaytime() + "ms"
@@ -136,29 +142,24 @@ public class DemoApplication {
 							try {
 								byte[] voiceBytes = client.downloadVoice(item);
 
-// 打印前10字节的十六进制，判断格式
 								StringBuilder hex = new StringBuilder();
 								for (int i = 0; i < Math.min(10, voiceBytes.length); i++) {
 									hex.append(String.format("%02X ", voiceBytes[i]));
 								}
 								System.out.println("[语音文件头] " + hex.toString());
-// 也可以转成字符串看
-								System.out.println("[语音文件头(文本)] " + new String(voiceBytes, 0, Math.min(20, voiceBytes.length)));
 								System.out.println("[语音下载成功] 大小=" + voiceBytes.length + " bytes");
 
-								// ASR 识别，格式先用 amr（微信语音常见格式）
 								String recognizedText = asrService.recognize(voiceBytes);
 
 								if (recognizedText != null && !recognizedText.isBlank()) {
 									System.out.println("[✅ 语音识别结果] " + recognizedText);
-									// 识别出的文本走现有流程
 									String finalText = recognizedText;
 									executor.submit(() -> {
 										try {
 											IntentRecognizer.IntentType intent = intentRecognizer.recognize(finalText);
 											String reply;
 											switch (intent) {
-												case WEATHER -> reply = getWeatherReply(finalText, weatherClient, intentRecognizer);
+												case WEATHER -> reply = fcService.chat(finalText);
 												case HELP -> reply = getHelpReply();
 												case VOICE_REPLY -> {
 													replyByVoice[0] = true;
@@ -168,12 +169,12 @@ public class DemoApplication {
 													replyByVoice[0] = false;
 													reply = "✅ 已切换为文字回复模式";
 												}
-												default -> reply = llmService.chat(finalText);
+												default -> reply = fcService.chat(finalText);
 											}
 											if (replyByVoice[0]) {
 												byte[] mp3Bytes = ttsService.synthesize(reply);
 												if (mp3Bytes != null) {
-													client.sendFile(fromUserId, mp3Bytes, "语音回复.mp3", "" );
+													client.sendFile(fromUserId, mp3Bytes, "语音回复.mp3", "");
 												} else {
 													client.sendText(fromUserId, "🎤 识别到：" + finalText + "\n\n" + reply);
 												}
@@ -212,17 +213,11 @@ public class DemoApplication {
 		}
 	}
 
-	/**
-	 * 天气查询：提取城市 → 调API → 格式化回复
-	 */
-	private static String getWeatherReply(String text, WeatherClient weatherClient,IntentRecognizer recognizer) {
-		// 1. 提取城市名
+	// getWeatherReply 和 getHelpReply 保持不变
+	private static String getWeatherReply(String text, WeatherClient weatherClient, IntentRecognizer recognizer) {
 		String city = recognizer.extractCity(text);
-		if (city == null) {
-			city = "长沙";
-		}
+		if (city == null) city = "长沙";
 
-		// 2. 城市 → LocationID
 		String locationId = switch (city) {
 			case "北京" -> "101010100";
 			case "上海" -> "101020100";
@@ -231,10 +226,9 @@ public class DemoApplication {
 			case "深圳" -> "101280601";
 			case "杭州" -> "101210101";
 			case "成都" -> "101270101";
-			default -> "101250101"; // 长沙
+			default -> "101250101";
 		};
 
-		// 3. 调 API
 		try {
 			WeatherResponse resp = weatherClient.getNowWeather(locationId);
 			if ("200".equals(resp.getCode()) && resp.getNow() != null) {
@@ -250,6 +244,7 @@ public class DemoApplication {
 			return "天气查询异常：" + e.getMessage();
 		}
 	}
+
 	private static String getHelpReply() {
 		return """
         🤖 我是智能微信助手，支持以下功能：
@@ -257,6 +252,9 @@ public class DemoApplication {
         🌤 天气查询
            发送「长沙天气」「今天多少度」「明天会下雨吗」「冷不冷」
            支持城市：北京/上海/广州/深圳/长沙/南京/杭州/成都等
+
+        🧮 数学计算
+           发送「帮我算 23 * 47」「(10+5)/3 等于多少」
 
         💬 闲聊对话
            随便聊，问我问题都行

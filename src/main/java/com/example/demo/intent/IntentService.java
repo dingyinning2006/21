@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 @Service
+// 先识别用户想要的回复类型，再把具体问题交给对应业务处理。
 public class IntentService {
 
     private final QwenService qwenService;
@@ -15,6 +16,7 @@ public class IntentService {
     }
 
     public IntentResult recognize(String userText) {
+        // 常见意图用本地规则快速识别，减少一次大模型请求。
         String ruleType = guessReplyType(userText);
 
         if (!"text".equals(ruleType)) {
@@ -57,10 +59,12 @@ public class IntentService {
         String result = qwenService.chatWithSystemPrompt(systemPrompt, userText);
 
         try {
+            // 大模型只允许返回 JSON，这里将 JSON 转换成 Java 对象。
             IntentResult intent = objectMapper.readValue(result, IntentResult.class);
             normalizeIntent(intent, userText);
             return intent;
         } catch (Exception e) {
+            // 模型返回格式异常时降级为普通文本回复，保证消息流程不中断。
             IntentResult fallback = new IntentResult();
             fallback.setReplyType("text");
             fallback.setUserQuestion(userText);
@@ -69,6 +73,7 @@ public class IntentService {
     }
 
     private void normalizeIntent(IntentResult intent, String originalText) {
+        // 对模型可能遗漏的字段补默认值，并清理“帮我画”等命令前缀。
         if (intent.getReplyType() == null || intent.getReplyType().isBlank()) {
             intent.setReplyType("text");
         }

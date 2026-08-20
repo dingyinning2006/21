@@ -11,10 +11,12 @@ import org.springframework.context.annotation.Configuration;
 import java.util.Optional;
 
 @Configuration
+// 微信客户端配置类：把 SDK 客户端交给 Spring 管理，供机器人主循环使用。
 public class WechatBotConfig {
 
     @Bean(destroyMethod = "close")
     public ILinkClient iLinkClient(WechatSessionStore sessionStore) {
+        // 这些参数控制网络超时、失败重试和心跳，避免微信连接长时间无响应。
         ILinkConfig config = ILinkConfig.builder()
                 .connectTimeoutMs(35000)
                 .readTimeoutMs(35000)
@@ -33,6 +35,7 @@ public class WechatBotConfig {
         Optional<LoginContext> loginContext = sessionStore.load();
 
         if (loginContext.isPresent()) {
+            // 找到上次保存的登录信息时，尝试恢复会话，减少重复扫码。
             System.out.println("检测到历史微信登录会话，尝试恢复登录");
             builder.resumeContext(ResumeContext.of(loginContext.get()));
         }

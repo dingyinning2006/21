@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+// 文生图服务：调用模型创建图片任务，再下载模型返回的图片数据。
 public class ImageService {
 
     private final String apiKey;
@@ -55,6 +56,7 @@ public class ImageService {
 
     public byte[] generateImage(String prompt) {
         try {
+            // 接口返回的是图片 URL 或 data URL，统一转换为字节数组供微信 SDK 发送。
             String imageUrl = createImage(prompt);
             return downloadImage(imageUrl);
         } catch (Exception e) {
@@ -63,6 +65,7 @@ public class ImageService {
     }
 
     private String createImage(String prompt) throws Exception {
+        // 按文生图接口要求组装模型、提示词和生成参数。
         Map<String, Object> body = Map.of(
                 "model", model,
                 "input", Map.of(
@@ -103,6 +106,7 @@ public class ImageService {
         }
 
         JsonNode root = objectMapper.readTree(response.body());
+        // 从响应 JSON 的固定路径提取图片地址。
         JsonNode imageNode = root.path("output")
                 .path("choices")
                 .path(0)
@@ -121,6 +125,7 @@ public class ImageService {
     }
 
     private byte[] downloadImage(String imageUrl) throws Exception {
+        // 有些服务返回 data URL，有些返回普通 HTTP URL，因此需要分开处理。
         String normalizedUrl = imageUrl == null ? "" : imageUrl.trim();
         if (normalizedUrl.isBlank()) {
             throw new RuntimeException("图片URL为空");
@@ -132,6 +137,7 @@ public class ImageService {
 
         Exception httpClientError = null;
         try {
+            // 优先使用现代 HttpClient 下载。
             byte[] bytes = downloadWithHttpClient(normalizedUrl);
             if (bytes != null) {
                 return bytes;
@@ -141,6 +147,7 @@ public class ImageService {
         }
 
         try {
+            // 某些图片服务器对 HttpClient 的请求不兼容，使用 URLConnection 作为备用方案。
             byte[] bytes = downloadWithUrlConnection(normalizedUrl);
             if (bytes != null) {
                 return bytes;

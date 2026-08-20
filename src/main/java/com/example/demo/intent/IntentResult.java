@@ -1,5 +1,6 @@
 package com.example.demo.intent;
 
+// 意图识别结果：replyType 决定回复方式，userQuestion 保存真正要处理的问题。
 public class IntentResult {
 
     private String replyType;

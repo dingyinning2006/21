@@ -42,6 +42,7 @@ public class TtsService {
     }
 
     public byte[] synthesize(String text) {
+        // 对外只返回音频字节，隐藏“调用接口获取 URL + 下载音频”的细节。
         try {
             // 对上层隐藏“创建任务 + 下载文件”两个网络步骤。
             String audioUrl = createAudio(text);
@@ -52,6 +53,7 @@ public class TtsService {
     }
 
     public int getSampleRate() {
+        // 语音发送或格式转换时需要使用与 TTS 输出一致的采样率。
         return sampleRate;
     }
 
@@ -101,6 +103,7 @@ public class TtsService {
     }
 
     private byte[] downloadAudio(String audioUrl) throws Exception {
+        // 创建语音接口只返回地址，这里负责把地址转换成二进制音频。
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(audioUrl))
                 .GET()

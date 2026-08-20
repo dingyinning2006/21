@@ -91,6 +91,7 @@ public class WechatMessageHandler {
     }
 
     private String handleVoiceMessage(String fromUserId, MessageItem voiceItem) throws Exception {
+        // 先给用户即时反馈，再执行可能耗时的下载、解码和语音识别。
         client.sendText(fromUserId, "收到语音，正在识别...");
 
         byte[] voiceBytes = client.downloadVoiceFromMessageItem(voiceItem);
@@ -109,6 +110,7 @@ public class WechatMessageHandler {
             MessageItem imageItem,
             String userText
     ) throws Exception {
+        // 图片消息的文字部分作为提示词，没有文字时使用默认描述请求。
         String prompt = userText == null || userText.isBlank()
                 ? "请简洁描述这张图片的主要内容。"
                 : userText;
@@ -120,6 +122,7 @@ public class WechatMessageHandler {
     }
 
     private void handleIntent(String fromUserId, IntentResult intent) throws Exception {
+        // 意图识别后按回复类型分流，避免所有请求都进入通用聊天模型。
         if ("image".equals(intent.getReplyType())) {
             handleImageIntent(fromUserId, intent.getUserQuestion());
             return;
@@ -139,6 +142,7 @@ public class WechatMessageHandler {
     }
 
     private void handleImageIntent(String fromUserId, String prompt) throws Exception {
+        // 文生图通常耗时较长，因此先发送处理中提示，再发送图片结果。
         client.sendText(fromUserId, "正在生成图片，请稍等...");
 
         byte[] imageBytes = imageService.generateImage(prompt);

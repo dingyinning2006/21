@@ -48,6 +48,7 @@ public class ToolDefinitionFactory {
     }
 
     private Map<String, Object> createUnitConverterTool() {
+        // enum 既约束模型输出，也为中文单位归一化保留可识别的输入值。
         Map<String, Object> properties = new HashMap<>();
         properties.put(
                 "value",
@@ -82,6 +83,7 @@ public class ToolDefinitionFactory {
     }
 
     private Map<String, Object> createBmiCalculatorTool() {
+        // 身高和体重是 BMI 计算所需的两个必填数字参数。
         Map<String, Object> properties = new HashMap<>();
         properties.put(
                 "height_cm",
@@ -107,6 +109,7 @@ public class ToolDefinitionFactory {
     }
 
     private Map<String, Object> createHealthPlanTool() {
+        // BMI 和分类来自上一步，goal 可选，用于调整建议方向。
         Map<String, Object> properties = new HashMap<>();
         properties.put(
                 "bmi",

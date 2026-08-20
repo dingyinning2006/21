@@ -50,6 +50,7 @@ public class QwenService {
     }
 
     public String chat(String userMessage) {
+        // 普通聊天使用项目默认提示词；意图识别等场景可调用下方的自定义提示词入口。
         return chatWithSystemPrompt(SYSTEM_PROMPT, userMessage);
     }
 
@@ -142,6 +143,7 @@ public class QwenService {
     }
 
     private void appendToolMessages(List<Map<String, Object>> messages, JsonNode toolCalls) {
+        // 一轮响应可能包含多个工具调用，必须按每个 call_id 分别追加结果。
         for (JsonNode toolCall : toolCalls) {
             String toolCallId = toolCall.path("id").asText();
             String toolName = toolCall.path("function").path("name").asText();

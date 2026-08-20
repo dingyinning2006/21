@@ -50,6 +50,7 @@ public class ToolExecutor {
     }
 
     private String executeUnitConverter(String argumentsJson) throws Exception {
+        // 单位工具先把中文单位归一化，再调用只认识标准缩写的业务服务。
         JsonNode arguments = objectMapper.readTree(argumentsJson);
         double value = readRequiredDouble(arguments, "value");
         String from = normalizeUnit(arguments, "from");
@@ -60,6 +61,7 @@ public class ToolExecutor {
     }
 
     private String executeBmiCalculator(String argumentsJson) throws Exception {
+        // BMI 结果会以 JSON 返回，供模型下一轮调用 health_plan 使用。
         JsonNode arguments = objectMapper.readTree(argumentsJson);
         double heightCm = readRequiredDouble(arguments, "height_cm");
         double weightKg = readRequiredDouble(arguments, "weight_kg");
@@ -70,6 +72,7 @@ public class ToolExecutor {
     }
 
     private String executeHealthPlan(String argumentsJson) throws Exception {
+        // 健康方案只消费 BMI、分类和用户目标，不在这里重复计算 BMI。
         JsonNode arguments = objectMapper.readTree(argumentsJson);
         double bmi = readRequiredDouble(arguments, "bmi");
         String category = readRequiredText(arguments, "category");
@@ -92,6 +95,7 @@ public class ToolExecutor {
     }
 
     private String readRequiredText(JsonNode arguments, String fieldName) {
+        // 文本参数必须存在且非空，避免把无效分类传给业务层。
         JsonNode valueNode = arguments.get(fieldName);
         if (valueNode == null
                 || !valueNode.isTextual()
@@ -106,6 +110,7 @@ public class ToolExecutor {
             String fieldName,
             String defaultValue
     ) {
+        // 可选参数缺失时使用默认目标，保证工具始终能生成方案。
         JsonNode valueNode = arguments.get(fieldName);
         if (valueNode == null
                 || !valueNode.isTextual()

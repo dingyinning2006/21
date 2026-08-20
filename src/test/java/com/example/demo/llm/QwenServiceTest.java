@@ -23,6 +23,7 @@ class QwenServiceTest {
 
     @Test
     void chainsBmiResultIntoHealthPlanCall() throws Exception {
+        // 用三次预设响应模拟：BMI 工具、健康方案工具、最终文本回答。
         StubQwenClient qwenClient = new StubQwenClient();
         qwenClient.add(toolCallResponse(
                 "call-bmi",
@@ -64,6 +65,7 @@ class QwenServiceTest {
             String toolName,
             String arguments
     ) {
+        // 构造 OpenAI 兼容格式的 assistant.tool_calls 响应。
         ObjectNode root = objectMapper.createObjectNode();
         ArrayNode choices = root.putArray("choices");
         ObjectNode message = choices.addObject().putObject("message");
@@ -80,6 +82,7 @@ class QwenServiceTest {
     }
 
     private JsonNode finalResponse(String content) {
+        // 构造不再调用工具、直接返回 content 的最终响应。
         ObjectNode root = objectMapper.createObjectNode();
         root.putArray("choices")
                 .addObject()
@@ -104,6 +107,7 @@ class QwenServiceTest {
 
         @Override
         public JsonNode send(Map<String, Object> body) {
+            // 记录每一轮请求，测试可以检查工具结果是否进入下一轮 messages。
             requests.add(body);
             return responses.remove();
         }

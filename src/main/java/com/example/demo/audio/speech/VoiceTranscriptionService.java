@@ -41,6 +41,7 @@ public class VoiceTranscriptionService {
     }
 
     public String transcribeSilk(byte[] silkBytes) {
+        // 这是微信语音进入系统的入口，负责衔接 SILK 解码和模型转写。
         // 模型接口不直接接收微信 SILK，所以先完成格式转换。
         byte[] wavBytes = silkConverterService.convertSilkToWav(silkBytes, sampleRate);
         return transcribeWav(wavBytes);
@@ -48,6 +49,7 @@ public class VoiceTranscriptionService {
 
     private String transcribeWav(byte[] wavBytes) {
         try {
+            // 识别接口接收 WAV data URL，音频内容嵌入 JSON 后发送。
             // 用 Base64 data URL 把 WAV 音频嵌入请求 JSON。
             String base64Audio = Base64.getEncoder().encodeToString(wavBytes);
             String audioDataUrl = "data:audio/wav;base64," + base64Audio;

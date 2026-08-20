@@ -135,7 +135,21 @@ public class IntentService {
                     "读一下：",
                     "读一下:",
                     "念一下：",
-                    "念一下:"
+                    "念一下:",
+                    "用语音回答我：",
+                    "用语音回答我:",
+                    "用语音回复我：",
+                    "用语音回复我:",
+                    "语音回答我：",
+                    "语音回答我:"
+            );
+
+            // 兼容“问题 + 用语音回答我”的自然表达方式。
+            cleaned = removeSuffixes(cleaned,
+                    "用语音回答我",
+                    "用语音回复我",
+                    "语音回答我",
+                    "语音回复我"
             );
         }
 
@@ -176,6 +190,18 @@ public class IntentService {
 
         for (String prefix : prefixes) {
             cleaned = removePrefix(cleaned, prefix);
+        }
+
+        return cleaned;
+    }
+
+    private String removeSuffixes(String text, String... suffixes) {
+        String cleaned = text;
+
+        for (String suffix : suffixes) {
+            if (cleaned.endsWith(suffix)) {
+                cleaned = cleaned.substring(0, cleaned.length() - suffix.length()).trim();
+            }
         }
 
         return cleaned;

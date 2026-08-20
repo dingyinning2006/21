@@ -52,11 +52,6 @@ public class TtsService {
         }
     }
 
-    public int getSampleRate() {
-        // 语音发送或格式转换时需要使用与 TTS 输出一致的采样率。
-        return sampleRate;
-    }
-
     private String createAudio(String text) throws Exception {
         // 组装 TTS 模型需要的文本、音色、格式和采样率参数。
         Map<String, Object> body = Map.of(

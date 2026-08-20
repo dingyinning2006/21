@@ -1,11 +1,12 @@
 package com.example.demo.bot.handler;
 
+import com.example.demo.audio.speech.VoiceTranscriptionService;
+import com.example.demo.audio.tts.TtsService;
 import com.example.demo.image.ImageService;
 import com.example.demo.intent.IntentResult;
 import com.example.demo.intent.IntentService;
 import com.example.demo.llm.QwenService;
 import com.example.demo.vision.VisionService;
-import com.example.demo.audio.speech.VoiceTranscriptionService;
 import com.example.demo.weather.WeatherService;
 import com.github.wechat.ilink.sdk.ILinkClient;
 import com.github.wechat.ilink.sdk.core.model.MessageItem;
@@ -27,6 +28,7 @@ public class WechatMessageHandler {
     private final ImageService imageService;
     private final VisionService visionService;
     private final VoiceTranscriptionService voiceTranscriptionService;
+    private final TtsService ttsService;
     private final WeatherService weatherService;
 
     public WechatMessageHandler(
@@ -36,6 +38,7 @@ public class WechatMessageHandler {
             ImageService imageService,
             VisionService visionService,
             VoiceTranscriptionService voiceTranscriptionService,
+            TtsService ttsService,
             WeatherService weatherService
     ) {
         this.client = client;
@@ -44,6 +47,7 @@ public class WechatMessageHandler {
         this.imageService = imageService;
         this.visionService = visionService;
         this.voiceTranscriptionService = voiceTranscriptionService;
+        this.ttsService = ttsService;
         this.weatherService = weatherService;
     }
 
@@ -123,6 +127,11 @@ public class WechatMessageHandler {
 
     private void handleIntent(String fromUserId, IntentResult intent) throws Exception {
         // 意图识别后按回复类型分流，避免所有请求都进入通用聊天模型。
+        if ("voice".equals(intent.getReplyType())) {
+            handleVoiceIntent(fromUserId, intent.getUserQuestion());
+            return;
+        }
+
         if ("image".equals(intent.getReplyType())) {
             handleImageIntent(fromUserId, intent.getUserQuestion());
             return;
@@ -139,6 +148,39 @@ public class WechatMessageHandler {
         String reply = qwenService.chat(intent.getUserQuestion());
         client.sendText(fromUserId, reply);
         System.out.println("已回复：" + reply);
+    }
+
+    /**
+     * 语音回复不是直接把用户问题转成语音，而是先得到正常的文字答案。
+     * 这样“查询天气并用语音回答”也会先走天气服务，再朗读天气结果。
+     */
+    private void handleVoiceIntent(String fromUserId, String userQuestion) throws Exception {
+        IntentResult contentIntent = intentService.recognize(userQuestion);
+        String textReply = buildTextReply(contentIntent);
+
+        byte[] wavBytes = ttsService.synthesize(textReply);
+
+        // 按文件发送 WAV，不走微信语音消息接口，也不需要转换成 SILK。
+        client.sendFile(
+                fromUserId,
+                wavBytes,
+                "qwen-reply.wav",
+                ""
+        );
+
+        System.out.println("已发送 WAV 文件回复：" + textReply);
+    }
+
+    private String buildTextReply(IntentResult intent) {
+        if ("weather".equals(intent.getReplyType())) {
+            return weatherService.query(intent.getUserQuestion());
+        }
+
+        if ("text".equals(intent.getReplyType())) {
+            return qwenService.chat(intent.getUserQuestion());
+        }
+
+        return "目前只能把文字答案转换成语音，暂不支持朗读图片或直接朗读图片。";
     }
 
     private void handleImageIntent(String fromUserId, String prompt) throws Exception {

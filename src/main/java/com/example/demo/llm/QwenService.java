@@ -54,6 +54,13 @@ public class QwenService {
         return chatWithSystemPrompt(SYSTEM_PROMPT, userMessage);
     }
 
+    /**
+     * 获取默认的System Prompt，供RAG增强等场景使用
+     */
+    public String getDefaultSystemPrompt() {
+        return SYSTEM_PROMPT;
+    }
+
     public String chatWithSystemPrompt(String systemPrompt, String userMessage) {
         try {
             List<Map<String, Object>> messages = buildInitialMessages(systemPrompt, userMessage);

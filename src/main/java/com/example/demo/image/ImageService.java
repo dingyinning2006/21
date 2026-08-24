@@ -38,7 +38,7 @@ public class ImageService {
 
     public ImageService(
             @Value("${llm.api-key}") String apiKey,
-            @Value("${image.create-url}") String createUrl,
+            @Value("${image.base-url}") String createUrl,
             @Value("${image.model}") String model,
             @Value("${image.size:1280*1280}") String size,
             @Value("${image.prompt-extend:true}") boolean promptExtend,

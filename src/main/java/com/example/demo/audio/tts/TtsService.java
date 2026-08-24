@@ -27,7 +27,7 @@ public class TtsService {
 
     public TtsService(
             @Value("${llm.api-key}") String apiKey,
-            @Value("${tts.api-url}") String apiUrl,
+            @Value("${tts.base-url}") String apiUrl,
             @Value("${tts.model}") String model,
             @Value("${tts.voice}") String voice,
             @Value("${tts.format}") String format,

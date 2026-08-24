@@ -6,12 +6,18 @@ import com.example.demo.image.ImageService;
 import com.example.demo.intent.IntentResult;
 import com.example.demo.intent.IntentService;
 import com.example.demo.llm.QwenService;
+import com.example.demo.rag.RagService;
+import com.example.demo.skill.Skill;
+import com.example.demo.skill.SkillRegistry;
 import com.example.demo.vision.VisionService;
 import com.example.demo.weather.WeatherService;
 import com.github.wechat.ilink.sdk.ILinkClient;
 import com.github.wechat.ilink.sdk.core.model.MessageItem;
 import com.github.wechat.ilink.sdk.core.model.WeixinMessage;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Optional;
 
 /**
  * 负责处理一条微信消息。
@@ -30,6 +36,8 @@ public class WechatMessageHandler {
     private final VoiceTranscriptionService voiceTranscriptionService;
     private final TtsService ttsService;
     private final WeatherService weatherService;
+    private final SkillRegistry skillRegistry;
+    private final RagService ragService;
 
     public WechatMessageHandler(
             ILinkClient client,
@@ -39,7 +47,9 @@ public class WechatMessageHandler {
             VisionService visionService,
             VoiceTranscriptionService voiceTranscriptionService,
             TtsService ttsService,
-            WeatherService weatherService
+            WeatherService weatherService,
+            SkillRegistry skillRegistry,
+            RagService ragService
     ) {
         this.client = client;
         this.qwenService = qwenService;
@@ -49,6 +59,8 @@ public class WechatMessageHandler {
         this.voiceTranscriptionService = voiceTranscriptionService;
         this.ttsService = ttsService;
         this.weatherService = weatherService;
+        this.skillRegistry = skillRegistry;
+        this.ragService = ragService;
     }
 
     /**
@@ -86,6 +98,17 @@ public class WechatMessageHandler {
         }
 
         System.out.println("收到消息：" + userText);
+
+        // ===== 第一层路由：Skill关键词匹配（最高优先级，直接执行不走LLM）=====
+        Optional<Skill> matchedSkill = skillRegistry.match(userText);
+        if (matchedSkill.isPresent()) {
+            Skill skill = matchedSkill.get();
+            System.out.println("命中Skill：" + skill.getName() + " - " + skill.getDescription());
+            String reply = skill.execute(userText);
+            client.sendText(fromUserId, reply);
+            System.out.println("Skill执行完成，已回复");
+            return;
+        }
 
         IntentResult intent = intentService.recognize(userText);
         System.out.println("识别意图：" + intent.getReplyType()
@@ -144,9 +167,31 @@ public class WechatMessageHandler {
             return;
         }
 
-        // text 类型由 QwenService 处理，工具调用也在其中完成。
-        String reply = qwenService.chat(intent.getUserQuestion());
-        client.sendText(fromUserId, reply);
+        // ===== 第二层路由：RAG知识检索增强 =====
+        // ===== 第三层路由：LLM兜底闲聊 =====
+        String reply;
+        if (ragService.isHit(intent.getUserQuestion())) {
+            // RAG命中：检索知识并增强Prompt，再让LLM基于知识回答
+            String enhancedPrompt = ragService.enhancePrompt(
+                    intent.getUserQuestion(),
+                    qwenService.getDefaultSystemPrompt()
+            );
+            reply = qwenService.chatWithSystemPrompt(enhancedPrompt, intent.getUserQuestion());
+            System.out.println("RAG增强回复：" + reply);
+        } else {
+            // RAG未命中：直接LLM闲聊（带Function Calling工具）
+            reply = qwenService.chat(intent.getUserQuestion());
+            System.out.println("LLM直接回复：" + reply);
+        }
+
+        System.out.println("准备发送消息，to=" + fromUserId + ", content=" + reply);
+        try {
+            client.sendText(fromUserId, reply);
+            System.out.println("sendText调用完成，无异常");
+        } catch (Exception e) {
+            System.err.println("sendText发送失败：" + e.getMessage());
+            e.printStackTrace();
+        }
         System.out.println("已回复：" + reply);
     }
 

@@ -1,0 +1,53 @@
+spring.application.name=demo
+
+# ============ 数据库配置 ============
+spring.datasource.url=jdbc:mysql://localhost:3306/demo?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+spring.datasource.username=root
+spring.datasource.password=
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# ============ 通义千问 LLM（文本对话） ============
+# API Key 优先从环境变量 QWEN_API_KEY 读取，也可直接填写
+llm.api-key=${QWEN_API_KEY:your_qwen_api_key_here}
+llm.base-url=${QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}
+llm.model=qwen3.7-plus
+
+# ============ 视觉理解（图片识别） ============
+vision.model=qwen3.5-omni-plus
+
+# ============ 语音识别 ============
+speech.model=qwen3.5-omni-plus
+
+# ============ SILK 编解码工具路径 ============
+silk.encoder-path=tools/silk/silk_v3_encoder.exe
+silk.decoder-path=tools/silk/silk_v3_decoder.exe
+
+# ============ 图片生成 ============
+image.base-url=${IMAGE_BASE_URL:https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation}
+image.task-url=
+image.model=wan2.6-t2i
+image.size=1280*1280
+image.prompt-extend=true
+image.watermark=false
+image.negative-prompt=
+
+# ============ TTS 语音合成 ============
+tts.base-url=${TTS_BASE_URL:https://dashscope.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer}
+tts.model=qwen-audio-3.0-tts-flash
+tts.voice=longanhuan_v3.6
+tts.format=wav
+tts.sample-rate=16000
+
+# ============ 天气查询（WeatherAPI） ============
+weather.api-key=${WEATHER_API_KEY:your_weather_api_key_here}
+weather.base-url=${WEATHER_BASE_URL:https://api.weatherapi.com/v1/current.json}
+weather.default-city=Nanjing
+weather.lang=zh
+weather.aqi=no
+
+# ============ 微信登录态持久化 ============
+wechat.session-file=data/wechat-login.json
+
+# ============ RAG 检索增强生成 ============
+# 是否开启RAG知识检索增强，true=开启，false=关闭（用于对比测试）
+rag.enabled=true

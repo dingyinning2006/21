@@ -1,6 +1,7 @@
 package com.example.demo;
 
 import com.example.demo.llm.LlmService;
+import com.example.demo.router.MessageRouter;
 import com.example.demo.service.FunctionCallingService;
 import com.example.demo.speech.SpeechRecognitionService;
 import com.example.demo.speech.SpeechSynthesisService;
@@ -24,12 +25,13 @@ public class DemoApplication {
 	private static final ExecutorService executor = Executors.newFixedThreadPool(4);
 
 	public static void main(String[] args) throws Exception {
-		// ===== 改动1：启动 Spring 容器，自动注册 ToolRegistry/FunctionCallingService/WeatherTool/CalculatorTool =====
+		// ===== 启动 Spring 容器，自动注册所有 Bean =====
 		ConfigurableApplicationContext context = SpringApplication.run(DemoApplication.class, args);
 
-		// 从容器拿 FunctionCallingService 和 LlmService（由 AppConfig @Bean 创建）
+		// 从容器拿服务实例
 		FunctionCallingService fcService = context.getBean(FunctionCallingService.class);
 		LlmService llmService = context.getBean(LlmService.class);
+		MessageRouter messageRouter = context.getBean(MessageRouter.class);
 
 		// ===== 以下保持你原来的手动构造 =====
 		WeChatClient client = new WeChatClient();
@@ -42,7 +44,7 @@ public class DemoApplication {
 		client.getUpdates();
 
 		System.out.println("========================================");
-		System.out.println("  LLM 机器人已启动，等待 clawbot 消息...");
+		System.out.println("  智能助手已启动（Skill + RAG 增强版），等待消息...");
 		System.out.println("========================================");
 
 		final boolean[] replyByVoice = {false};
@@ -68,11 +70,6 @@ public class DemoApplication {
 									String reply;
 									IntentRecognizer.IntentType intent = intentRecognizer.recognize(userText);
 									switch (intent) {
-										case WEATHER -> {
-											// ===== 改动2：天气走 Function Calling，由 WeatherTool 处理 =====
-											reply = fcService.chat(userText);
-											System.out.println("[✅ 天气查询回复]：" + reply);
-										}
 										case HELP -> {
 											reply = getHelpReply();
 											System.out.println("[✅ 帮助回复]");
@@ -88,9 +85,10 @@ public class DemoApplication {
 											System.out.println("[✅ 切换文字回复模式]");
 										}
 										default -> {
-											// ===== 改动3：闲聊+计算器都走 Function Calling，LLM 自动判断调不调工具 =====
-											reply = fcService.chat(userText);
-											System.out.println("[✅ LLM拿到回复]：" + reply);
+											// 天气、计算器、RAG问答、闲聊 统一走 MessageRouter 总路由
+											// 优先级：Skill（关键词确定性执行）→ RAG（知识库增强）→ LLM 兜底
+											reply = messageRouter.route(userText);
+											System.out.println("[✅ MessageRouter回复]：" + reply);
 										}
 									}
 
@@ -119,7 +117,7 @@ public class DemoApplication {
 							});
 						}
 
-						// ===== 图片消息（保持不变，图文混合不走工具调用） =====
+						// ===== 图片消息（保持不变） =====
 						if (item.getImage_item() != null) {
 							String imgUrl = item.getImage_item().getUrl();
 							System.out.println("[收到图片消息] 图片链接：" + imgUrl);
@@ -159,7 +157,6 @@ public class DemoApplication {
 											IntentRecognizer.IntentType intent = intentRecognizer.recognize(finalText);
 											String reply;
 											switch (intent) {
-												case WEATHER -> reply = fcService.chat(finalText);
 												case HELP -> reply = getHelpReply();
 												case VOICE_REPLY -> {
 													replyByVoice[0] = true;
@@ -169,7 +166,7 @@ public class DemoApplication {
 													replyByVoice[0] = false;
 													reply = "✅ 已切换为文字回复模式";
 												}
-												default -> reply = fcService.chat(finalText);
+												default -> reply = messageRouter.route(finalText);
 											}
 											if (replyByVoice[0]) {
 												byte[] mp3Bytes = ttsService.synthesize(reply);
@@ -213,7 +210,7 @@ public class DemoApplication {
 		}
 	}
 
-	// getWeatherReply 和 getHelpReply 保持不变
+	// getWeatherReply 保持不变（备用）
 	private static String getWeatherReply(String text, WeatherClient weatherClient, IntentRecognizer recognizer) {
 		String city = recognizer.extractCity(text);
 		if (city == null) city = "长沙";
@@ -247,16 +244,21 @@ public class DemoApplication {
 
 	private static String getHelpReply() {
 		return """
-        🤖 我是智能微信助手，支持以下功能：
+        🤖 我是智能微信助手（Skill + RAG 增强版），支持以下功能：
 
-        🌤 天气查询
-           发送「长沙天气」「今天多少度」「明天会下雨吗」「冷不冷」
+        🌤 天气查询（Skill 确定性执行）
+           发送「长沙天气」「今天多少度」「明天会下雨吗」
            支持城市：北京/上海/广州/深圳/长沙/南京/杭州/成都等
 
-        🧮 数学计算
-           发送「帮我算 23 * 47」「(10+5)/3 等于多少」
+        🧮 数学计算（Skill 确定性执行）
+           发送「计算 23 * 47」「(10+5)/3 等于多少」
 
-        💬 闲聊对话
+        📚 知识库问答（RAG 增强）
+           发送「这个机器人能做什么」「如何开启RAG」等问题
+           发送「开启RAG」/「关闭RAG」切换知识库增强
+           发送「RAG状态」查看当前开关
+
+        💬 闲聊对话（LLM 兜底）
            随便聊，问我问题都行
 
         🖼️ 图片识别

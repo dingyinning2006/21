@@ -1,7 +1,9 @@
 package com.example.demo.llm;
 
 import org.springframework.stereotype.Component;
+import com.example.demo.skill.Skill;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +19,11 @@ public class ToolDefinitionFactory {
     public static final String UNIT_CONVERTER_TOOL = "unit_converter";
     public static final String BMI_CALCULATOR_TOOL = "bmi_calculator";
     public static final String HEALTH_PLAN_TOOL = "health_plan";
+    private final List<Skill> skills;
 
+    public ToolDefinitionFactory(List<Skill> skills) {
+        this.skills = skills;
+    }
     public static final List<String> SUPPORTED_UNITS =
             List.of("km", "m", "cm", "kg", "g", "h", "min", "s");
 
@@ -40,11 +46,22 @@ public class ToolDefinitionFactory {
      * 返回本项目当前允许模型调用的全部工具。
      */
     public List<Map<String, Object>> buildTools() {
-        return List.of(
-                createUnitConverterTool(),
-                createBmiCalculatorTool(),
-                createHealthPlanTool()
-        );
+        List<Map<String, Object>> tools = new ArrayList<>();
+
+        tools.add(createUnitConverterTool());
+        tools.add(createBmiCalculatorTool());
+        tools.add(createHealthPlanTool());
+
+        for (Skill skill : skills) {
+            tools.add(functionTool(
+                    skill.getName(),
+                    skill.getDescription(),
+                    skill.getParameters(),
+                    skill.getRequiredParameters()
+            ));
+        }
+
+        return tools;
     }
 
     private Map<String, Object> createUnitConverterTool() {

@@ -42,8 +42,12 @@ class QwenServiceTest {
         QwenService qwenService = new QwenService(
                 "qwen-test",
                 qwenClient,
-                new ToolDefinitionFactory(),
-                new ToolExecutor(unitConverterService, healthToolService)
+                new ToolDefinitionFactory(List.of()),
+                new ToolExecutor(
+                        unitConverterService,
+                        healthToolService,
+                        List.of()
+                )
         );
 
         String reply = qwenService.chat("我的身高170厘米，体重70公斤，帮我制定减脂方案");

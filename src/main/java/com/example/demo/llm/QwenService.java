@@ -30,6 +30,7 @@ public class QwenService {
                     + "如果用户需要进行单位换算，请使用 unit_converter 工具。"
                     + "如果用户提供身高和体重，想计算 BMI、判断体型，或者要锻炼/饮食建议，"
                     + "请先使用 bmi_calculator 工具，再根据它返回的 bmi 和 category 使用 health_plan 工具。"
+                    +"如果用户询问睡眠质量、睡眠时长或夜间醒来情况，请使用 sleep_assessment 工具。"
                     + "不要自己猜测计算结果。";
 
     private final String model;

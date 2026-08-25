@@ -5,7 +5,11 @@ import com.example.demo.tool.UnitConverterService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
+import com.example.demo.skill.Skill;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 
 /**
@@ -19,13 +23,19 @@ public class ToolExecutor {
     private final UnitConverterService unitConverterService;
     private final HealthToolService healthToolService;
     private final ObjectMapper objectMapper = new ObjectMapper();
-
+    private final Map<String, Skill> skills;
     public ToolExecutor(
             UnitConverterService unitConverterService,
-            HealthToolService healthToolService
+            HealthToolService healthToolService,
+            List<Skill> skills
     ) {
         this.unitConverterService = unitConverterService;
         this.healthToolService = healthToolService;
+
+        this.skills = new HashMap<>();
+        for (Skill skill : skills) {
+            this.skills.put(skill.getName(), skill);
+        }
     }
 
     /**
@@ -33,6 +43,11 @@ public class ToolExecutor {
      */
     public String execute(String toolName, String argumentsJson) {
         try {
+            Skill skill = skills.get(toolName);
+
+            if (skill != null) {
+                return skill.execute(argumentsJson);
+            }
             return switch (toolName) {
                 case ToolDefinitionFactory.UNIT_CONVERTER_TOOL ->
                         executeUnitConverter(argumentsJson);

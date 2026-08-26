@@ -1,4 +1,4 @@
-package com.example.demo.rag;
+package com.example.demo.agent.knowledge;
 
 import org.springframework.stereotype.Component;
 

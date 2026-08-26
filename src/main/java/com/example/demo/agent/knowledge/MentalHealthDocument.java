@@ -1,5 +1,6 @@
-package com.example.demo.rag;
+package com.example.demo.agent.knowledge;
 
+import com.example.demo.rag.RagDocument;
 import java.util.List;
 
 /**

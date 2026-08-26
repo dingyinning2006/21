@@ -1,5 +1,6 @@
-package com.example.demo.skill;
+package com.example.demo.agent.skill;
 
+import com.example.demo.skill.Keyword;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

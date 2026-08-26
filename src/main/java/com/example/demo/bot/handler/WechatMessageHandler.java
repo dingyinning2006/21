@@ -8,9 +8,14 @@ import com.example.demo.intent.IntentService;
 import com.example.demo.llm.QwenService;
 import com.example.demo.skill.SkillKeywordRouter;
 import com.example.demo.rag.KeywordRagService;
-import com.example.demo.rag.MentalHealthRagService;
+import com.example.demo.agent.knowledge.MentalHealthRagService;
 import com.example.demo.agent.screening.ScreeningOrchestrator;
 import com.example.demo.vision.VisionService;
+import com.example.demo.weather.WeatherService;
+import com.github.wechat.ilink.sdk.ILinkClient;
+import com.github.wechat.ilink.sdk.core.model.MessageItem;
+import com.github.wechat.ilink.sdk.core.model.WeixinMessage;
+import org.springframework.stereotype.Component;
 /**
  * 负责处理一条微信消息。
  *

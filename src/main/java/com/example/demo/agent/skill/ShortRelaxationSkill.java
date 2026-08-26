@@ -1,5 +1,7 @@
-package com.example.demo.skill;
+package com.example.demo.agent.skill;
 
+import com.example.demo.skill.Keyword;
+import com.example.demo.skill.Skill;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;

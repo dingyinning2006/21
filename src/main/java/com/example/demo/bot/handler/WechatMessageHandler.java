@@ -7,14 +7,14 @@ import com.example.demo.intent.IntentResult;
 import com.example.demo.intent.IntentService;
 import com.example.demo.llm.QwenService;
 import com.example.demo.skill.SkillKeywordRouter;
+import com.example.demo.rag.KeywordRagService;
+import com.example.demo.rag.MentalHealthRagService;
 import com.example.demo.vision.VisionService;
 import com.example.demo.weather.WeatherService;
 import com.github.wechat.ilink.sdk.ILinkClient;
 import com.github.wechat.ilink.sdk.core.model.MessageItem;
 import com.github.wechat.ilink.sdk.core.model.WeixinMessage;
 import org.springframework.stereotype.Component;
-import com.example.demo.skill.SkillKeywordRouter;
-import com.example.demo.rag.KeywordRagService;
 /**
  * 负责处理一条微信消息。
  *
@@ -34,6 +34,7 @@ public class WechatMessageHandler {
     private final WeatherService weatherService;
     private final SkillKeywordRouter skillKeywordRouter;
     private final KeywordRagService keywordRagService;
+    private final MentalHealthRagService mentalHealthRagService;
 
 
     public WechatMessageHandler(
@@ -46,7 +47,8 @@ public class WechatMessageHandler {
             TtsService ttsService,
             WeatherService weatherService,
             SkillKeywordRouter skillKeywordRouter,
-            KeywordRagService keywordRagService
+            KeywordRagService keywordRagService,
+            MentalHealthRagService mentalHealthRagService
 
     ) {
         this.client = client;
@@ -59,6 +61,7 @@ public class WechatMessageHandler {
         this.weatherService = weatherService;
         this.skillKeywordRouter = skillKeywordRouter;
         this.keywordRagService = keywordRagService;
+        this.mentalHealthRagService = mentalHealthRagService;
 
 
     }
@@ -106,9 +109,15 @@ public class WechatMessageHandler {
             return;
         }
         String ragContext = keywordRagService.buildContext(userText);
+        boolean isM2Rag = ragContext.isBlank();
+
+        // M1 基础 RAG 为空时，查询 M2 心理健康知识库
+        if (isM2Rag) {
+            ragContext = mentalHealthRagService.buildContext(userText);
+        }
 
         if (!ragContext.isBlank()) {
-            System.out.println("命中 RAG，检索结果：");
+            System.out.println("命中 " + (isM2Rag ? "M2 心理健康" : "") + "RAG，检索结果：");
             System.out.println(ragContext);
 
             String ragPrompt = """

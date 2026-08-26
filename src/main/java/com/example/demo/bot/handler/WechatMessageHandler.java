@@ -15,6 +15,7 @@ import com.github.wechat.ilink.sdk.core.model.WeixinMessage;
 import org.springframework.stereotype.Component;
 import com.example.demo.skill.SkillKeywordRouter;
 import com.example.demo.rag.KeywordRagService;
+import com.example.demo.agent.screening.ScreeningOrchestrator;
 /**
  * 负责处理一条微信消息。
  *
@@ -34,6 +35,8 @@ public class WechatMessageHandler {
     private final WeatherService weatherService;
     private final SkillKeywordRouter skillKeywordRouter;
     private final KeywordRagService keywordRagService;
+    private final ScreeningOrchestrator screeningOrchestrator;
+
 
 
     public WechatMessageHandler(
@@ -46,7 +49,8 @@ public class WechatMessageHandler {
             TtsService ttsService,
             WeatherService weatherService,
             SkillKeywordRouter skillKeywordRouter,
-            KeywordRagService keywordRagService
+            KeywordRagService keywordRagService,
+            ScreeningOrchestrator screeningOrchestrator
 
     ) {
         this.client = client;
@@ -59,6 +63,7 @@ public class WechatMessageHandler {
         this.weatherService = weatherService;
         this.skillKeywordRouter = skillKeywordRouter;
         this.keywordRagService = keywordRagService;
+        this.screeningOrchestrator = screeningOrchestrator;
 
 
     }
@@ -99,6 +104,7 @@ public class WechatMessageHandler {
         }
 
         System.out.println("收到消息：" + userText);
+
         String skillReply = skillKeywordRouter.route(userText);
 
         if (skillReply != null) {
@@ -189,6 +195,11 @@ public class WechatMessageHandler {
 
         // text 类型由 QwenService 处理，工具调用也在其中完成。
         String reply = qwenService.chat(intent.getUserQuestion());
+       /* String reply = screeningOrchestrator.handleFirstMessage(
+                fromUserId,
+                fromUserId,
+                intent.getUserQuestion()
+        );*/
         client.sendText(fromUserId, reply);
         System.out.println("已回复：" + reply);
     }

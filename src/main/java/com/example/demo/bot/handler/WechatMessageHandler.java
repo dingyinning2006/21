@@ -6,13 +6,15 @@ import com.example.demo.image.ImageService;
 import com.example.demo.intent.IntentResult;
 import com.example.demo.intent.IntentService;
 import com.example.demo.llm.QwenService;
+import com.example.demo.skill.SkillKeywordRouter;
 import com.example.demo.vision.VisionService;
 import com.example.demo.weather.WeatherService;
 import com.github.wechat.ilink.sdk.ILinkClient;
 import com.github.wechat.ilink.sdk.core.model.MessageItem;
 import com.github.wechat.ilink.sdk.core.model.WeixinMessage;
 import org.springframework.stereotype.Component;
-
+import com.example.demo.skill.SkillKeywordRouter;
+import com.example.demo.rag.KeywordRagService;
 /**
  * 负责处理一条微信消息。
  *
@@ -30,6 +32,9 @@ public class WechatMessageHandler {
     private final VoiceTranscriptionService voiceTranscriptionService;
     private final TtsService ttsService;
     private final WeatherService weatherService;
+    private final SkillKeywordRouter skillKeywordRouter;
+    private final KeywordRagService keywordRagService;
+
 
     public WechatMessageHandler(
             ILinkClient client,
@@ -39,7 +44,10 @@ public class WechatMessageHandler {
             VisionService visionService,
             VoiceTranscriptionService voiceTranscriptionService,
             TtsService ttsService,
-            WeatherService weatherService
+            WeatherService weatherService,
+            SkillKeywordRouter skillKeywordRouter,
+            KeywordRagService keywordRagService
+
     ) {
         this.client = client;
         this.qwenService = qwenService;
@@ -49,6 +57,10 @@ public class WechatMessageHandler {
         this.voiceTranscriptionService = voiceTranscriptionService;
         this.ttsService = ttsService;
         this.weatherService = weatherService;
+        this.skillKeywordRouter = skillKeywordRouter;
+        this.keywordRagService = keywordRagService;
+
+
     }
 
     /**
@@ -56,6 +68,7 @@ public class WechatMessageHandler {
      * 单条消息的异常由上层主循环统一捕获，避免一个消息影响后续消息。
      */
     public void handle(WeixinMessage message) throws Exception {
+
         String fromUserId = message.getFrom_user_id();
         if (fromUserId == null || fromUserId.isBlank()) {
             return;
@@ -86,6 +99,36 @@ public class WechatMessageHandler {
         }
 
         System.out.println("收到消息：" + userText);
+        String skillReply = skillKeywordRouter.route(userText);
+
+        if (skillReply != null) {
+            client.sendText(fromUserId, skillReply);
+            return;
+        }
+        String ragContext = keywordRagService.buildContext(userText);
+
+        if (!ragContext.isBlank()) {
+            System.out.println("命中 RAG，检索结果：");
+            System.out.println(ragContext);
+
+            String ragPrompt = """
+            你是一个简洁、可靠的助手。
+            请优先根据下面的参考资料回答用户问题。
+            如果参考资料无法回答问题，可以基于常识补充，但不要编造资料中没有的具体事实。
+
+            参考资料：
+            %s
+            """.formatted(ragContext);
+
+            String reply = qwenService.chatWithSystemPrompt(
+                    ragPrompt,
+                    userText
+            );
+
+            client.sendText(fromUserId, reply);
+            System.out.println("已回复 RAG 增强结果：" + reply);
+            return;
+        }
 
         IntentResult intent = intentService.recognize(userText);
         System.out.println("识别意图：" + intent.getReplyType()

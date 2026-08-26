@@ -4,6 +4,8 @@ import com.example.demo.tool.HealthToolService;
 import com.example.demo.tool.UnitConverterService;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -11,7 +13,8 @@ class ToolExecutorTest {
 
     private final ToolExecutor toolExecutor = new ToolExecutor(
             new UnitConverterService(),
-            new HealthToolService()
+            new HealthToolService(),
+            List.of()
     );
 
     @Test

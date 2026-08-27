@@ -7,15 +7,27 @@ import com.example.demo.intent.IntentResult;
 import com.example.demo.intent.IntentService;
 import com.example.demo.llm.QwenService;
 import com.example.demo.skill.SkillKeywordRouter;
-import com.example.demo.rag.KeywordRagService;
-import com.example.demo.agent.knowledge.MentalHealthRagService;
-import com.example.demo.agent.screening.ScreeningOrchestrator;
 import com.example.demo.vision.VisionService;
 import com.example.demo.weather.WeatherService;
 import com.github.wechat.ilink.sdk.ILinkClient;
 import com.github.wechat.ilink.sdk.core.model.MessageItem;
 import com.github.wechat.ilink.sdk.core.model.WeixinMessage;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.example.demo.rag.KeywordRagService;
+import com.example.demo.agent.knowledge.MentalHealthRagService;
+import com.example.demo.agent.screening.ScreeningOrchestrator;
+import com.example.demo.agent.safety.SafetyRouter;
+import com.example.demo.agent.contract.SafetyDecision;
+import com.example.demo.agent.contract.PlanDay;
+import com.example.demo.agent.contract.ScreeningResult;
+import com.example.demo.agent.contract.StageReport;
+import com.example.demo.agent.planning.LocalCheckInParser;
+import com.example.demo.agent.planning.SupportPlanOrchestrator;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
 /**
  * 负责处理一条微信消息。
  *
@@ -36,9 +48,14 @@ public class WechatMessageHandler {
     private final SkillKeywordRouter skillKeywordRouter;
     private final KeywordRagService keywordRagService;
     private final MentalHealthRagService mentalHealthRagService;
+    private final WechatSupportCheckInService supportCheckInService;
     private final ScreeningOrchestrator screeningOrchestrator;
+    private final SafetyRouter safetyRouter;
+    private final SupportPlanOrchestrator supportPlanOrchestrator;
+    private final LocalCheckInParser checkInParser = new LocalCheckInParser();
 
 
+    @Autowired
     public WechatMessageHandler(
             ILinkClient client,
             QwenService qwenService,
@@ -51,7 +68,10 @@ public class WechatMessageHandler {
             SkillKeywordRouter skillKeywordRouter,
             KeywordRagService keywordRagService,
             MentalHealthRagService mentalHealthRagService,
-            ScreeningOrchestrator screeningOrchestrator
+            WechatSupportCheckInService supportCheckInService,
+            ScreeningOrchestrator screeningOrchestrator,
+            SafetyRouter safetyRouter,
+            SupportPlanOrchestrator supportPlanOrchestrator
 
     ) {
         this.client = client;
@@ -65,9 +85,48 @@ public class WechatMessageHandler {
         this.skillKeywordRouter = skillKeywordRouter;
         this.keywordRagService = keywordRagService;
         this.mentalHealthRagService = mentalHealthRagService;
+        this.supportCheckInService = supportCheckInService;
         this.screeningOrchestrator = screeningOrchestrator;
+        this.safetyRouter = safetyRouter;
+        this.supportPlanOrchestrator = supportPlanOrchestrator;
 
 
+    }
+
+    /** 保留不带 M4 存储服务的构造函数，便于 M1 单元测试独立运行。 */
+    public WechatMessageHandler(
+            ILinkClient client,
+            QwenService qwenService,
+            IntentService intentService,
+            ImageService imageService,
+            VisionService visionService,
+            VoiceTranscriptionService voiceTranscriptionService,
+            TtsService ttsService,
+            WeatherService weatherService,
+            SkillKeywordRouter skillKeywordRouter,
+            KeywordRagService keywordRagService,
+            MentalHealthRagService mentalHealthRagService,
+            ScreeningOrchestrator screeningOrchestrator,
+            SafetyRouter safetyRouter,
+            SupportPlanOrchestrator supportPlanOrchestrator
+    ) {
+        this(
+                client,
+                qwenService,
+                intentService,
+                imageService,
+                visionService,
+                voiceTranscriptionService,
+                ttsService,
+                weatherService,
+                skillKeywordRouter,
+                keywordRagService,
+                mentalHealthRagService,
+                null,
+                screeningOrchestrator,
+                safetyRouter,
+                supportPlanOrchestrator
+        );
     }
 
     /**
@@ -105,7 +164,83 @@ public class WechatMessageHandler {
             userText = "用户发送了一条非文字消息";
         }
 
-        System.out.println("收到消息：" + userText);
+        System.out.println("收到消息，用户ID：" + fromUserId);
+
+        SafetyDecision safetyDecision = safetyRouter.evaluate(fromUserId, userText);
+        if (safetyDecision.stopNormalChat()) {
+            String safetyMessage = safetyDecision.message()
+                    + "\n\n接下来请这样做：\n- "
+                    + String.join("\n- ", safetyDecision.actions());
+            client.sendText(fromUserId, safetyMessage);
+            return;
+        }
+
+        if (supportCheckInService != null) {
+            String supportReply = supportCheckInService.handle(fromUserId, userText).orElse(null);
+            if (supportReply != null) {
+                client.sendText(fromUserId, supportReply);
+                return;
+            }
+        }
+
+        if (supportPlanOrchestrator.hasPlan(fromUserId) && isReportRequest(userText)) {
+            try {
+                StageReport report = supportPlanOrchestrator.buildStageReport(fromUserId);
+                client.sendText(fromUserId, formatStageReport(report));
+            } catch (IllegalStateException exception) {
+                client.sendText(fromUserId, "目前还没有足够的每日打卡记录，完成至少一次打卡后我再为你生成阶段报告。");
+            }
+            return;
+        }
+
+        if (supportPlanOrchestrator.hasPlan(fromUserId)
+                && checkInParser.looksLikeCheckIn(userText)) {
+            Optional<com.example.demo.agent.contract.CheckInRecord> checkIn = checkInParser.parse(
+                    fromUserId,
+                    LocalDate.now(),
+                    userText
+            );
+            if (checkIn.isEmpty()) {
+                client.sendText(fromUserId,
+                        "我可以帮你记录每日打卡，请补充：压力 0-10 分、睡眠几小时、心情 0-10 分、任务完成率百分比。"
+                );
+                return;
+            }
+
+            supportPlanOrchestrator.recordCheckIn(checkIn.get());
+            PlanDay nextDay = supportPlanOrchestrator.getPlan(fromUserId).stream()
+                    .filter(planDay -> planDay.date().equals(LocalDate.now().plusDays(1)))
+                    .findFirst()
+                    .orElse(null);
+            String adjustmentText = nextDay != null && nextDay.reducedLoad()
+                    ? "我已根据今天的状态把明天的现实任务调整为更小的一步。"
+                    : "明天先按原计划推进，如果状态变化明显再告诉我。";
+            client.sendText(fromUserId, "今天的打卡已记录。" + adjustmentText);
+            return;
+        }
+
+        if (isSupportMessage(userText)) {
+            String screeningReply = screeningOrchestrator.handleFirstMessage(
+                    fromUserId,
+                    fromUserId,
+                    userText
+            );
+            ScreeningResult screeningResult = screeningOrchestrator.getCompletedResult(fromUserId);
+            if (screeningResult == null) {
+                client.sendText(fromUserId, screeningReply);
+                return;
+            }
+
+            List<PlanDay> plan = supportPlanOrchestrator.startPlan(
+                    screeningResult,
+                    LocalDate.now()
+            );
+            client.sendText(
+                    fromUserId,
+                    screeningReply + "\n\n已为你生成 7 天计划。\n" + formatPlanDay(plan.get(0))
+            );
+            return;
+        }
 
         String skillReply = skillKeywordRouter.route(userText);
 
@@ -145,8 +280,7 @@ public class WechatMessageHandler {
         }
 
         IntentResult intent = intentService.recognize(userText);
-        System.out.println("识别意图：" + intent.getReplyType()
-                + "，内容：" + intent.getUserQuestion());
+        System.out.println("识别意图，类型：" + intent.getReplyType());
 
         handleIntent(fromUserId, intent);
     }
@@ -157,7 +291,7 @@ public class WechatMessageHandler {
 
         byte[] voiceBytes = client.downloadVoiceFromMessageItem(voiceItem);
         String userText = voiceTranscriptionService.transcribeSilk(voiceBytes);
-        System.out.println("语音识别结果：" + userText);
+        System.out.println("语音识别完成，用户ID：" + fromUserId);
 
         if (userText == null || userText.isBlank()) {
             client.sendText(fromUserId, "这段语音我没有识别出文字，可以再说一遍。");
@@ -298,5 +432,52 @@ public class WechatMessageHandler {
             }
         }
         return null;
+    }
+
+    private boolean isSupportMessage(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+
+        String[] keywords = {
+                "焦虑", "压力", "毕业", "论文", "答辩", "求职", "面试",
+                "考试", "复习", "拖延", "失眠", "睡不着", "睡不好",
+                "室友", "家人", "同学", "朋友"
+        };
+        for (String keyword : keywords) {
+            if (message.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isReportRequest(String message) {
+        return message.contains("阶段报告")
+                || message.contains("查看报告")
+                || message.contains("我的报告");
+    }
+
+    private String formatPlanDay(PlanDay planDay) {
+        StringBuilder text = new StringBuilder()
+                .append("第 ").append(planDay.dayIndex()).append(" 天（")
+                .append(planDay.date()).append("）：")
+                .append(planDay.focus());
+        for (int index = 0; index < planDay.tasks().size(); index++) {
+            com.example.demo.agent.contract.PlanTask task = planDay.tasks().get(index);
+            text.append("\n").append(index + 1).append(". ")
+                    .append(task.title())
+                    .append("（约 ").append(task.estimatedDuration().toMinutes()).append(" 分钟）");
+        }
+        return text.toString();
+    }
+
+    private String formatStageReport(StageReport report) {
+        return "阶段报告：\n"
+                + report.summary() + "\n"
+                + "压力变化：" + report.stressDelta() + "\n"
+                + "睡眠变化：" + report.sleepDelta() + " 小时\n"
+                + "观察：" + String.join("；", report.observedChanges()) + "\n"
+                + "下一步：" + String.join("；", report.nextStepSuggestions());
     }
 }

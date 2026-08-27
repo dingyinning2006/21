@@ -67,7 +67,15 @@ public class WechatLoginRunner implements ApplicationRunner {
      */
     private void messageLoop() throws Exception {
         while (true) {
-            List<WeixinMessage> messages = client.getUpdates();
+            List<WeixinMessage> messages;
+            try {
+                messages = client.getUpdates();
+            } catch (Exception exception) {
+                // 网络抖动不应终止 Bot；等待后继续复用当前登录会话。
+                System.err.println("微信消息轮询失败，5 秒后重试：" + exception.getMessage());
+                Thread.sleep(5000);
+                continue;
+            }
 
             for (WeixinMessage message : messages) {
                 try {

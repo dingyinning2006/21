@@ -37,9 +37,11 @@ weather.base-url=https://api.weatherapi.com/v1/current.json
 weather.default-city=Nanjing
 weather.lang=zh
 weather.aqi=no
-
 # ============ RAG 检索增强生成 ============
 # M1 基础关键词 RAG 开关
 rag.enabled=false
 # M2 心理健康知识库 RAG 开关
 rag.mental-health.enabled=true
+
+# ============ 心理支持状态存储 ============
+support.storage-file=data/support-state.json

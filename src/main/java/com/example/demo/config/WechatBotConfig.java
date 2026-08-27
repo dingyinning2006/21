@@ -24,7 +24,8 @@ public class WechatBotConfig {
                 .httpMaxRetries(3)
                 .retryBaseDelayMs(1000)
                 .retryMaxDelayMs(10000)
-                .heartbeatEnabled(true)
+                // 消息由 WechatLoginRunner 的单一手动轮询消费，避免 SDK 心跳线程并行调用 getUpdates。
+                .heartbeatEnabled(false)
                 .heartbeatIntervalMs(30000)
                 .channelVersion("1.0.0")
                 .build();

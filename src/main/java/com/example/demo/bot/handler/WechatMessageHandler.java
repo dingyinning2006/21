@@ -13,6 +13,7 @@ import com.github.wechat.ilink.sdk.ILinkClient;
 import com.github.wechat.ilink.sdk.core.model.MessageItem;
 import com.github.wechat.ilink.sdk.core.model.WeixinMessage;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.example.demo.rag.KeywordRagService;
 import com.example.demo.agent.screening.ScreeningOrchestrator;
 import com.example.demo.agent.safety.SafetyRouter;
@@ -45,13 +46,14 @@ public class WechatMessageHandler {
     private final WeatherService weatherService;
     private final SkillKeywordRouter skillKeywordRouter;
     private final KeywordRagService keywordRagService;
+    private final WechatSupportCheckInService supportCheckInService;
     private final ScreeningOrchestrator screeningOrchestrator;
     private final SafetyRouter safetyRouter;
     private final SupportPlanOrchestrator supportPlanOrchestrator;
     private final LocalCheckInParser checkInParser = new LocalCheckInParser();
 
 
-
+    @Autowired
     public WechatMessageHandler(
             ILinkClient client,
             QwenService qwenService,
@@ -63,6 +65,7 @@ public class WechatMessageHandler {
             WeatherService weatherService,
             SkillKeywordRouter skillKeywordRouter,
             KeywordRagService keywordRagService,
+            WechatSupportCheckInService supportCheckInService,
             ScreeningOrchestrator screeningOrchestrator,
             SafetyRouter safetyRouter,
             SupportPlanOrchestrator supportPlanOrchestrator
@@ -78,11 +81,46 @@ public class WechatMessageHandler {
         this.weatherService = weatherService;
         this.skillKeywordRouter = skillKeywordRouter;
         this.keywordRagService = keywordRagService;
+        this.supportCheckInService = supportCheckInService;
         this.screeningOrchestrator = screeningOrchestrator;
         this.safetyRouter = safetyRouter;
         this.supportPlanOrchestrator = supportPlanOrchestrator;
 
 
+    }
+
+    /** 保留不带 M4 存储服务的构造函数，便于 M1 单元测试独立运行。 */
+    public WechatMessageHandler(
+            ILinkClient client,
+            QwenService qwenService,
+            IntentService intentService,
+            ImageService imageService,
+            VisionService visionService,
+            VoiceTranscriptionService voiceTranscriptionService,
+            TtsService ttsService,
+            WeatherService weatherService,
+            SkillKeywordRouter skillKeywordRouter,
+            KeywordRagService keywordRagService,
+            ScreeningOrchestrator screeningOrchestrator,
+            SafetyRouter safetyRouter,
+            SupportPlanOrchestrator supportPlanOrchestrator
+    ) {
+        this(
+                client,
+                qwenService,
+                intentService,
+                imageService,
+                visionService,
+                voiceTranscriptionService,
+                ttsService,
+                weatherService,
+                skillKeywordRouter,
+                keywordRagService,
+                null,
+                screeningOrchestrator,
+                safetyRouter,
+                supportPlanOrchestrator
+        );
     }
 
     /**
@@ -129,6 +167,14 @@ public class WechatMessageHandler {
                     + String.join("\n- ", safetyDecision.actions());
             client.sendText(fromUserId, safetyMessage);
             return;
+        }
+
+        if (supportCheckInService != null) {
+            String supportReply = supportCheckInService.handle(fromUserId, userText).orElse(null);
+            if (supportReply != null) {
+                client.sendText(fromUserId, supportReply);
+                return;
+            }
         }
 
         if (supportPlanOrchestrator.hasPlan(fromUserId) && isReportRequest(userText)) {

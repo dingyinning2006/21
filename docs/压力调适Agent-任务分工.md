@@ -81,7 +81,6 @@
 - `src/main/java/com/example/demo/support/domain`：共享 record、状态枚举和基础字段校验。
 - `src/test/java/com/example/demo/support/domain/SupportDomainContractTest.java`：JSON round-trip、范围校验、安全分流和不可变集合测试，当前 10 个用例通过。
 - `jackson-datatype-jsr310`：保证 `LocalDate`、`Instant` 等日期字段可序列化。
-
 ## M1：核心编排与安全路由
 
 > 负责人：**曹伟宁**

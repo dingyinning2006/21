@@ -1,5 +1,6 @@
 package com.example.demo.bot.handler;
 
+import com.example.demo.agent.knowledge.MentalHealthRagService;
 import com.example.demo.agent.planning.PlanAdjustmentService;
 import com.example.demo.agent.planning.SevenDayPlanGenerator;
 import com.example.demo.agent.planning.SupportPlanOrchestrator;
@@ -42,6 +43,7 @@ class WechatMessageHandlerPlanFlowTest {
                 mock(WeatherService.class),
                 mock(SkillKeywordRouter.class),
                 mock(KeywordRagService.class),
+                mock(MentalHealthRagService.class),
                 new ScreeningOrchestrator(),
                 new SafetyRouter(),
                 new SupportPlanOrchestrator(new SevenDayPlanGenerator(), new PlanAdjustmentService())

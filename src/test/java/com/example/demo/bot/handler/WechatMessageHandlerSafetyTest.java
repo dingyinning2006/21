@@ -1,5 +1,6 @@
 package com.example.demo.bot.handler;
 
+import com.example.demo.agent.knowledge.MentalHealthRagService;
 import com.example.demo.agent.safety.SafetyRouter;
 import com.example.demo.audio.speech.VoiceTranscriptionService;
 import com.example.demo.audio.tts.TtsService;
@@ -56,6 +57,7 @@ class WechatMessageHandlerSafetyTest {
                 weatherService,
                 skillKeywordRouter,
                 keywordRagService,
+                mock(MentalHealthRagService.class),
                 screeningOrchestrator,
                 new SafetyRouter(),
                 supportPlanOrchestrator
@@ -98,11 +100,13 @@ class WechatMessageHandlerSafetyTest {
         WeatherService weatherService = mock(WeatherService.class);
         SkillKeywordRouter skillKeywordRouter = mock(SkillKeywordRouter.class);
         KeywordRagService keywordRagService = mock(KeywordRagService.class);
+        MentalHealthRagService mentalHealthRagService = mock(MentalHealthRagService.class);
         ScreeningOrchestrator screeningOrchestrator = mock(ScreeningOrchestrator.class);
         SupportPlanOrchestrator supportPlanOrchestrator = mock(SupportPlanOrchestrator.class);
 
         when(skillKeywordRouter.route("介绍一下 Spring Boot")).thenReturn(null);
         when(keywordRagService.buildContext("介绍一下 Spring Boot")).thenReturn("");
+        when(mentalHealthRagService.buildContext("介绍一下 Spring Boot")).thenReturn("");
 
         IntentResult intent = new IntentResult();
         intent.setReplyType("text");
@@ -121,6 +125,7 @@ class WechatMessageHandlerSafetyTest {
                 weatherService,
                 skillKeywordRouter,
                 keywordRagService,
+                mentalHealthRagService,
                 screeningOrchestrator,
                 new SafetyRouter(),
                 supportPlanOrchestrator
@@ -167,6 +172,7 @@ class WechatMessageHandlerSafetyTest {
                 weatherService,
                 skillKeywordRouter,
                 keywordRagService,
+                mock(MentalHealthRagService.class),
                 screeningOrchestrator,
                 new SafetyRouter(),
                 supportPlanOrchestrator

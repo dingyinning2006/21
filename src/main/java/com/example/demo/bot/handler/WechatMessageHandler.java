@@ -34,6 +34,7 @@ public class WechatMessageHandler {
     private final WeatherService weatherService;
     private final SkillKeywordRouter skillKeywordRouter;
     private final KeywordRagService keywordRagService;
+    private final WechatSupportCheckInService supportCheckInService;
 
 
     public WechatMessageHandler(
@@ -46,7 +47,8 @@ public class WechatMessageHandler {
             TtsService ttsService,
             WeatherService weatherService,
             SkillKeywordRouter skillKeywordRouter,
-            KeywordRagService keywordRagService
+            KeywordRagService keywordRagService,
+            WechatSupportCheckInService supportCheckInService
 
     ) {
         this.client = client;
@@ -59,6 +61,7 @@ public class WechatMessageHandler {
         this.weatherService = weatherService;
         this.skillKeywordRouter = skillKeywordRouter;
         this.keywordRagService = keywordRagService;
+        this.supportCheckInService = supportCheckInService;
 
 
     }
@@ -99,6 +102,11 @@ public class WechatMessageHandler {
         }
 
         System.out.println("收到消息：" + userText);
+        String supportReply = supportCheckInService.handle(fromUserId, userText).orElse(null);
+        if (supportReply != null) {
+            client.sendText(fromUserId, supportReply);
+            return;
+        }
         String skillReply = skillKeywordRouter.route(userText);
 
         if (skillReply != null) {

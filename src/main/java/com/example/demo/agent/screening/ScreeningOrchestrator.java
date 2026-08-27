@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class ScreeningOrchestrator {
     private final Map<String, ScreeningDraft> drafts = new ConcurrentHashMap<>();
+    private final Map<String, ScreeningResult> completedResults = new ConcurrentHashMap<>();
     public String handleFirstMessage(
             String userId,
             String displayName,
@@ -40,6 +41,7 @@ public class ScreeningOrchestrator {
                     draft.functionImpaired(),
                     draft.stressSources()
             );
+            completedResults.put(userId, result);
 
             return "初筛已经完成。"
                     + "你的压力大约是 " + result.stressLevel() + " 分。"
@@ -278,5 +280,9 @@ public class ScreeningOrchestrator {
                 && draft.stressLevel() != null
                 && draft.sleepAffected() != null
                 && draft.functionImpaired() != null;
+    }
+
+    public ScreeningResult getCompletedResult(String userId) {
+        return completedResults.get(userId);
     }
 }

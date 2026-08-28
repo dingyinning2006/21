@@ -15,6 +15,7 @@ import com.github.wechat.ilink.sdk.core.model.WeixinMessage;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.example.demo.rag.KeywordRagService;
+import com.example.demo.agent.knowledge.MentalHealthRagService;
 import com.example.demo.agent.screening.ScreeningOrchestrator;
 import com.example.demo.agent.safety.SafetyRouter;
 import com.example.demo.agent.contract.SafetyDecision;
@@ -46,6 +47,7 @@ public class WechatMessageHandler {
     private final WeatherService weatherService;
     private final SkillKeywordRouter skillKeywordRouter;
     private final KeywordRagService keywordRagService;
+    private final MentalHealthRagService mentalHealthRagService;
     private final WechatSupportCheckInService supportCheckInService;
     private final ScreeningOrchestrator screeningOrchestrator;
     private final SafetyRouter safetyRouter;
@@ -65,6 +67,7 @@ public class WechatMessageHandler {
             WeatherService weatherService,
             SkillKeywordRouter skillKeywordRouter,
             KeywordRagService keywordRagService,
+            MentalHealthRagService mentalHealthRagService,
             WechatSupportCheckInService supportCheckInService,
             ScreeningOrchestrator screeningOrchestrator,
             SafetyRouter safetyRouter,
@@ -81,6 +84,7 @@ public class WechatMessageHandler {
         this.weatherService = weatherService;
         this.skillKeywordRouter = skillKeywordRouter;
         this.keywordRagService = keywordRagService;
+        this.mentalHealthRagService = mentalHealthRagService;
         this.supportCheckInService = supportCheckInService;
         this.screeningOrchestrator = screeningOrchestrator;
         this.safetyRouter = safetyRouter;
@@ -101,6 +105,7 @@ public class WechatMessageHandler {
             WeatherService weatherService,
             SkillKeywordRouter skillKeywordRouter,
             KeywordRagService keywordRagService,
+            MentalHealthRagService mentalHealthRagService,
             ScreeningOrchestrator screeningOrchestrator,
             SafetyRouter safetyRouter,
             SupportPlanOrchestrator supportPlanOrchestrator
@@ -116,6 +121,7 @@ public class WechatMessageHandler {
                 weatherService,
                 skillKeywordRouter,
                 keywordRagService,
+                mentalHealthRagService,
                 null,
                 screeningOrchestrator,
                 safetyRouter,
@@ -243,9 +249,15 @@ public class WechatMessageHandler {
             return;
         }
         String ragContext = keywordRagService.buildContext(userText);
+        boolean isM2Rag = ragContext.isBlank();
+
+        // M1 基础 RAG 为空时，查询 M2 心理健康知识库
+        if (isM2Rag) {
+            ragContext = mentalHealthRagService.buildContext(userText);
+        }
 
         if (!ragContext.isBlank()) {
-            System.out.println("命中 RAG，检索结果：");
+            System.out.println("命中 " + (isM2Rag ? "M2 心理健康" : "") + "RAG，检索结果：");
             System.out.println(ragContext);
 
             String ragPrompt = """
